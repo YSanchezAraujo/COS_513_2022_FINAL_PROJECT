@@ -1,0 +1,3 @@
+# Latent variable models of neurons and behavior for tracking learning
+
+What I'd like to do for this project is come up with a latent variable model, where the latent variable emits two observations per time index. One observation will represent behavioral data colleceted from animals (such as mice, rats, monkeys, or people), and the other latent varible will represent neural data collected at the same time. The latent variable will need to jointly explain the dynamics of both data modalities. I'm particularly interested in applying this in a learning context -- one where the animals are undergoing de-novo task acqusition.
