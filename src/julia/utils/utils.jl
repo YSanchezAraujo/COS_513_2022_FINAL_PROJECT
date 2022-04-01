@@ -60,3 +60,17 @@ function make_fake_data_hmm(n_samples, obs_dists,  params, init_p, A)
     end
     return y, Z
 end
+
+n_samples = 2000
+obs_dists = [Normal, Normal]
+params = [(0, 1), (5, 1)] # (means, standard deviation) for each state
+probs = [0.5, 0.5] # initial transition
+A = [0.3 0.7; 0.7 0.3] # transition matrix
+y, Z = make_fake_data_hmm(n_samples, obs_dists, params, probs, A) # generate fake data
+
+fig, ax = plt.subplots(nrows=1, ncols=2)
+ax[1].imshow(A)
+ax[2].imshow(pos.)
+
+
+
