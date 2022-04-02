@@ -42,8 +42,9 @@ class Forward_message:
         self.Z[0] = Z_init
 
         for t in range(1, N):
-            alpha_t, Z_t = _normalize_z(data.lik[t, :] * (self.Phi.T @ self.alpha[t-1, :]))
-            self.alpha[t, :] = alpha_t
+            alpha_t, Z_t = _normalize_z(data.lik[t, :][:, np.newaxis] * 
+                                        (self.Phi.T @ self.alpha[t-1, :][:, np.newaxis]))
+            self.alpha[t, :] = alpha_t.ravel()
             self.Z[t] = Z_t
         
 
@@ -59,8 +60,8 @@ class Backward_message:
         self.beta[N-1, :] = 1
 
         for t in range(N-1, 0, -1):
-            beta_t, _ = _normalize_z(Phi @ (data.lik[t, :] * self.beta[t, :]))
-            self.beta[t-1, :] = beta_t
+            beta_t, _ = _normalize_z(Phi @ (data.lik[t, :] * self.beta[t, :])[:, np.newaxis])
+            self.beta[t-1, :] = beta_t.ravel()
 
 # problem areas to solve are here
 def posterior_estimates(forward_message, backward_message, data):
@@ -73,7 +74,7 @@ def posterior_estimates(forward_message, backward_message, data):
         g = gamma[:, k]
         mu[k] = (g[:, np.newaxis].T @ data.y[:, np.newaxis]) / np.sum(g)
     
-    sig2, zeta = np.zeros(K), np.zeros((K, K, N))
+    sig2, zeta = np.zeros(K), np.zeros((N, K, K))
     y_no_mu = data.y[:, np.newaxis] - mu
 
     for k in range(K):
@@ -85,11 +86,11 @@ def posterior_estimates(forward_message, backward_message, data):
     for t in range(N-1):
         lik_beta = data.lik[t+1, :] * backward_message.beta[t+1, :]
         alpha = forward_message.alpha[t, :]
-        zeta[:, :, t] = (
+        zeta[t, :, :] = (
             forward_message.Phi * (alpha[:, np.newaxis] @ lik_beta[:, np.newaxis].T)
         ) / forward_message.Z[t+1]
 
-    #zeta_nt = np.sum(zeta, axis=(2, 1))
-    #zeta = np.sum(zeta, axis=2) / zeta_nt
+    Phi = np.sum(zeta, axis=0)
+    Phi = Phi / Phi.sum(axis=1)[:, np.newaxis]
 
-    return gamma, mu, np.sqrt(sig2), pi, zeta.sum(2) / zeta.sum(2).sum(1)
+    return gamma, mu, np.sqrt(sig2), pi, Phi
