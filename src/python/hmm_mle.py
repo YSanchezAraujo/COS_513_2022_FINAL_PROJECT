@@ -32,7 +32,7 @@ def fit_hmm_em(y,
         back_mesg.run(data, forw_mesg.Phi)
 
         # compute posteriors
-        gamma, mu, sig, pi, zeta = posterior_estimates(forw_mesg, back_mesg, data)
+        gamma, mu, sig, pi, Phi  = posterior_estimates(forw_mesg, back_mesg, data)
 
         # compute log-likelihood
         log_lik_m = np.sum(np.log(forw_mesg.Z))
@@ -45,7 +45,7 @@ def fit_hmm_em(y,
         data.compute_likelihoods()
 
         # update forward object Phi
-        forw_mesg.Phi = zeta
+        forw_mesg.Phi = Phi
         forw_mesg.pi = pi
 
         # check convergence
@@ -53,8 +53,7 @@ def fit_hmm_em(y,
             break
 
     # create final object to regurn
-    posterior = {"mean": mu, "stdev": sig, "pi":pi, "zeta": zeta, "gamma": gamma}
+    posterior = {"mean": mu, "stdev": sig, "pi":pi, "Phi": Phi, "gamma": gamma}
 
     return posterior, forw_mesg, back_mesg, data
-
     
