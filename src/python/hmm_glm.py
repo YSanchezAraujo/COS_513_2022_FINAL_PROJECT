@@ -14,9 +14,9 @@ class Data:
         N = np.shape(self.y)[0]
         K = len(self.psi)
         
-        mus = np.mean(self.X @ self.W, axis=0)
+        XW = self.X @ self.W 
         for k in range(K):
-            self.lik[:, k] = self.psi[k](mus[k], self.stdevs[k]).pdf(self.y)
+            self.lik[:, k] = self.psi[k](XW[:, k], self.stdevs[k]).pdf(self.y)
 
 class Forward_message:
     def __init__(self, alpha, pi, Z, Phi):
@@ -66,15 +66,17 @@ def posterior_estimates(forward_message, backward_message, data):
     gamma = forward_message.alpha * backward_message.beta
     W = np.zeros((np.shape(data.X)[1], K))
     X_proj = np.linalg.pinv(data.X.T @ data.X) @ data.X.T
-    p_z = gamma / gamma.sum(0)[np.newaxis, :]
+    p_z = gamma / gamma.sum(0)[np.newaxis, :] * N
 
     for k in range(K):
         W[:, k] = X_proj * p_z[:, k].T @ data.y
+        #W[:, k] = (X_proj * gamma[:, k].T @ data.y)
 
-    mu = np.mean(data.X @ W, axis=0)
+    
     # have to figure these out
     sig2, zeta = np.zeros(K), np.zeros((N, K, K))
-    y_no_mu = data.y[:, np.newaxis] - mu
+    y_no_mu = data.y[:, np.newaxis] - X @ W
+
     # remember these are clearly still wrong
     for k in range(K):
         g = gamma[:, k]
