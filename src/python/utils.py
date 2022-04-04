@@ -55,8 +55,8 @@ def simulate_data_hmm_glm(n_samples, likelihood_dists, W, X, pi, A, stdev):
 
     for t in range(1, n_samples):
         Z[t] = _get_Z(A[Z[t-1], :])
-        mu_t = X[t, :] @ W[:, Z[t-1]]
-        sig_t = stdev[Z[t-1]]
+        mu_t = X[t, :] @ W[:, Z[t]]
+        sig_t = stdev[Z[t]]
         y[t] = likelihood_dists[Z[t]](mu_t, sig_t).rvs()
 
     return y, Z
