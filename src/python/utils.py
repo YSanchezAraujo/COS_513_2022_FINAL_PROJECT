@@ -1,6 +1,13 @@
 import numpy as np
 import scipy.stats as ss
 from sklearn.cluster import KMeans
+from sklearn import linear_model
+
+
+def lm(X, y):
+    model = linear_model.LinearRegression()
+    model.fit(X, y)
+    return model.coef_
 
 def _get_Z(p):
     dist = ss.multinomial
@@ -37,8 +44,28 @@ def simulate_data_hmm(n_samples, likelihood_dists, params, pi, A):
 
     return y, Z
 
+
+def simulate_data_hmm_glm(n_samples, likelihood_dists, W, X, pi, A, stdev):
+    Z = np.zeros(n_samples, dtype=int)
+    y = np.zeros(n_samples)
+
+    Z[0] = _get_Z(pi)
+    mu_0, sig_0 = X[0, :] @ W[:, Z[0]], stdev[Z[0]]
+    y[0] = likelihood_dists[Z[0]](mu_0, sig_0).rvs()
+
+    for t in range(1, n_samples):
+        Z[t] = _get_Z(A[Z[t-1], :])
+        mu_t = X[t, :] @ W[:, Z[t-1]]
+        sig_t = stdev[Z[t-1]]
+        y[t] = likelihood_dists[Z[t]](mu_t, sig_t).rvs()
+
+    return y, Z
+
+
+
+
 # testing
-n_samples = 100
+n_samples = 1000
 likelihood_dists = [ss.norm, ss.norm]
 params = [(0, 1), (10, 1)]
 pi = [0.3, 0.7]
@@ -47,4 +74,23 @@ A = np.array([[0.6, 0.4],
 
 y, Z = simulate_data_hmm(n_samples, likelihood_dists, params, pi, A)
 
-test = fit_hmm_em(y, likelihood_dists)
+est, f, b, d = fit_hmm_em(y, likelihood_dists)
+
+
+# testing hmm_glm simulator
+
+n_samples = 1000
+likelihood_dists = [ss.norm, ss.norm]
+params = [1, 0.5]
+pi = [0.5, 0.5]
+A = np.array([[0.6, 0.4],
+              [0.2, 0.8]])
+W = np.array([[10, 1], 
+              [4, 0.5], 
+              [5.5, 1.5]])
+              
+X = np.random.random((n_samples, 3))
+y, Z = simulate_data_hmm_glm(n_samples, likelihood_dists, W, X, pi, A, [1, 1])
+
+
+est, f, b, d = fit_hmm_glm_em(y, likelihood_dists, X)
