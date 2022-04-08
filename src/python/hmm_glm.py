@@ -21,7 +21,6 @@ class Data:
 class Forward_message:
     def __init__(self, alpha, pi, Z, Phi):
         """
-            alpha: sufficient statistics estimated from e step
             pi: initial distribution
             Z: normalizing constant
             Phi: transition matrix
@@ -46,9 +45,6 @@ class Forward_message:
 
 class Backward_message:
     def __init__(self, beta):
-        """
-            beta: sufficient statistics
-        """
         self.beta = beta
     
     def run(self, data, Phi):
@@ -65,22 +61,18 @@ def posterior_estimates(forward_message, backward_message, data):
     K = len(data.psi)
     gamma = forward_message.alpha * backward_message.beta
     W = np.zeros((np.shape(data.X)[1], K))
-    X_proj = np.linalg.pinv(data.X.T @ data.X) @ data.X.T
-    p_z = gamma / gamma.sum(0)[np.newaxis, :] * N
-
-    for k in range(K):
-        W[:, k] = X_proj * p_z[:, k].T @ data.y
-        #W[:, k] = (X_proj * gamma[:, k].T @ data.y)
-
+    X_proj = np.linalg.inv(data.X.T @ data.X) @ data.X.T
+    p_z = gamma / gamma.sum(0)[np.newaxis, :]
     
-    # have to figure these out
-    sig2, zeta = np.zeros(K), np.zeros((N, K, K))
-    y_no_mu = data.y[:, np.newaxis] - X @ W
+    for k in range(K):
+        W[:, k] = X_proj * p_z[:, k].T @ data.y * N
 
-    # remember these are clearly still wrong
+    sig2, zeta = np.zeros(K), np.zeros((N, K, K))
+    y_no_mu = (data.y[:, np.newaxis] - data.X @ W)
+
     for k in range(K):
         g = gamma[:, k]
-        sig2[k] = (g[:, np.newaxis].T @ y_no_mu[:, k]**2 )/ np.sum(gamma[:, k])
+        sig2[k] = ((g[:, np.newaxis].T @ y_no_mu[:, k]**2 )/ np.sum(gamma[:, k]))
 
     pi = gamma[0, :] / np.sum(gamma[0, :])
 
