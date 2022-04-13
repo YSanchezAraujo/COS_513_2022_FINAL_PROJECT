@@ -61,11 +61,12 @@ def posterior_estimates(forward_message, backward_message, data):
     K = len(data.psi)
     gamma = forward_message.alpha * backward_message.beta
     W = np.zeros((np.shape(data.X)[1], K))
-    X_proj = np.linalg.inv(data.X.T @ data.X) @ data.X.T
-    p_z = gamma / gamma.sum(0)[np.newaxis, :]
     
     for k in range(K):
-        W[:, k] = X_proj * p_z[:, k].T @ data.y * N
+        p_z = np.diag(gamma[:, k] / np.sum(gamma[:, k]))
+        X_proj = data.X.T @ p_z @ data.X
+        y_proj = data.X.T @ p_z @ data.y
+        W[:, k] = np.linalg.lstsq(X_proj, y_proj, rcond=None)[0]
 
     sig2, zeta = np.zeros(K), np.zeros((N, K, K))
     y_no_mu = (data.y[:, np.newaxis] - data.X @ W)
