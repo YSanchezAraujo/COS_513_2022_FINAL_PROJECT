@@ -85,7 +85,7 @@ def get_softmax_comps(X, theta_mat, y):
     log_norm = np.log(exp_x_dot_theta_norm)
     log_prob = x_dot_theta - log_norm[:, np.newaxis]
     delta_yk = _indicator_Y(y, K)
-    cost = -np.sum(np.multiply(delta_yk, log_prob.T))
+    cost = -np.sum(np.multiply(delta_yk.T, log_prob))
     return cost, delta_yk, log_prob, prob
 
 
@@ -96,23 +96,25 @@ def softmax_cost(theta, X, y):
     return cost
 
 
+
 def grad_softmax(theta, X, y):
     N, P = X.shape
     K = len(np.unique(y))
     _, delta_yk, _, prob = get_softmax_comps(X, theta.reshape(P, K), y)
-    delta_prob = (delta_yk.T - prob)
-    grad_theta = np.concatenate([-np.sum(X - delta_prob[:, k][:, np.newaxis], axis=0) 
-                    for k in range(prob.shape[1])])
-    return grad_theta
+    jac = np.zeros((P, K))
+    for k in range(K):
+        jac[:, k] = -np.multiply(X, (delta_yk.T[:, k][:, np.newaxis] - prob)).sum(0)
+    return jac.flatten()
 
 from scipy.linalg import block_diag
+# this is clearly wrong
 def hess_softmax(theta, X, y):
     _, P = X.shape
     K = len(np.unique(y))
     _, _, _, prob = get_softmax_comps(X, theta.reshape(P, K), y)
     theta_mat = theta.reshape(P, K)
     H = block_diag(*[np.diag(theta_mat[:, k]) - prob[:, k].reshape(P, P) 
-                 for k in range(K)])
+                for k in range(K)])
     return H
 
 
@@ -153,7 +155,7 @@ est, f, b, d = fit_hmm_em(y, likelihood_dists)
 
 # testing hmm_glm simulator
 
-n_samples = 3000
+n_samples = 300
 likelihood_dists = [ss.norm, ss.norm]
 pi = [0.5, 0.5]
 A = np.array([[0.6, 0.4],
@@ -170,7 +172,7 @@ est, f, b, d = fit_hmm_glm_em(y, likelihood_dists, X)
 
 
 from sklearn.datasets import make_classification
-X, y = make_classification(n_samples=100, n_features=5, n_informative=3, 
+X, y = make_classification(n_samples=1000, n_features=3, n_informative=3, 
                            n_redundant=0, n_classes=3, random_state=1)
 # summarize the dataset
 N, P = X.shape
@@ -179,5 +181,4 @@ theta_mat = np.random.random((P, K))
 
 test = optimize_softmax(X, y, "CG")
  
-
 
