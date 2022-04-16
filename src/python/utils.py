@@ -2,7 +2,7 @@ import numpy as np
 import scipy.stats as ss
 from sklearn.cluster import KMeans
 from sklearn import linear_model
-
+from scipy.optimize import minimize
 
 def lm(X, y):
     model = linear_model.LinearRegression()
@@ -70,52 +70,52 @@ def _indicator_Y(y, k_max):
     return np.vstack([_indicator_y(y, k) for k in range(k_max)])
 
 
-def get_softmax_comps(X, theta_mat, y):
-    _, P = X.shape
-    P2, K = theta_mat.shape
-    assert P == P2
-    x_dot_theta = X @ theta_mat
-    x_dot_theta = x_dot_theta - np.max(x_dot_theta, axis=1)[:, np.newaxis]
-    # 709 is float64 precision
-    #exp_x_dot_theta = np.exp(np.clip(x_dot_theta, -709.78, 709.78))
-    exp_x_dot_theta = np.exp(x_dot_theta)
-    exp_x_dot_theta_norm = np.sum(exp_x_dot_theta, axis=1)
-    prob = exp_x_dot_theta / exp_x_dot_theta_norm[:, np.newaxis]
-    # log normalizer
-    log_norm = np.log(exp_x_dot_theta_norm)
-    log_prob = x_dot_theta - log_norm[:, np.newaxis]
-    delta_yk = _indicator_Y(y, K)
-    cost = -np.sum(np.multiply(delta_yk.T, log_prob))
-    return cost, delta_yk, log_prob, prob
+
+def comps(theta, X, y):
+    N = np.shape(y)[0]
+    K = len(np.unique(y)) - 1
+    P = np.shape(X)[1]
+    W = np.reshape(theta, (P, K))
+    xproj = X @ W
+    row_max = np.max(xproj, axis=1, keepdims=True)
+    xproj = xproj - row_max
+    exp_xproj = np.exp(xproj)
+    log_norm = np.log(np.sum(exp_xproj, axis=1, keepdims=True))
+    Y = _indicator_Y(y, K).T
+    return Y, log_norm, exp_xproj, xproj, P, K
 
 
-def softmax_cost(theta, X, y):
-    N, P = X.shape
-    K = len(np.unique(y))
-    cost, _, _, _ = get_softmax_comps(X, theta.reshape(P, K), y)
-    return cost
+def cost(theta, X, y):
+    Y, log_norm, _, xproj, _, _ = comps(theta, X, y)
+    cost = Y * xproj - Y * log_norm
+    return -cost.sum(1).sum()
 
 
-
-def grad_softmax(theta, X, y):
-    N, P = X.shape
-    K = len(np.unique(y))
-    _, delta_yk, _, prob = get_softmax_comps(X, theta.reshape(P, K), y)
-    jac = np.zeros((P, K))
+def grad_cost(theta, X, y):
+    Y, _, exp_xproj, _, P, K = comps(theta, X, y)
+    p_y = exp_xproj / np.sum(exp_xproj, axis=1, keepdims=True)
+    jacc = np.zeros((P, K))
     for k in range(K):
-        jac[:, k] = -np.multiply(X, (delta_yk.T[:, k][:, np.newaxis] - prob)).sum(0)
-    return jac.flatten()
+        #jacc[:, k] = -np.sum(Y[:, k][:, np.newaxis] * (X - p_y[:, k][:, np.newaxis]),axis=0)
+        jacc[:, k] = -np.sum(X * (Y[:, k] - p_y[:, k])[:, np.newaxis] , axis=0)
+    return jacc.flatten()
 
-from scipy.linalg import block_diag
-# this is clearly wrong
-def hess_softmax(theta, X, y):
-    _, P = X.shape
-    K = len(np.unique(y))
-    _, _, _, prob = get_softmax_comps(X, theta.reshape(P, K), y)
-    theta_mat = theta.reshape(P, K)
-    H = block_diag(*[np.diag(theta_mat[:, k]) - prob[:, k].reshape(P, P) 
-                for k in range(K)])
-    return H
+# testing gradients
+from autograd import grad
+import autograd.numpy as anp
+
+def cost_anp(theta, X, y):
+    K, N = anp.shape(theta)[1], np.shape(y)[0]
+    xproj = X @ theta
+    exp_xproj = anp.exp(xproj)
+    log_norm = anp.log(anp.sum(exp_xproj, axis=1, keepdims=True))
+    Y = _indicator_Y(y, K).T
+    cost = Y * xproj - Y * log_norm
+    return -cost.sum(1).sum()
+
+grad(cost_anp, 0)(theta, X, y)
+
+#from scipy.linalg import block_diag
 
 
 
@@ -126,10 +126,9 @@ Alternative is to use scikit-learn
 """
 def optimize_softmax(X, y, method):
     N, P = X.shape
-    M = len(np.unique(y)) # number of classes
-    K = M # number of non redundant sets of parameters
+    K = len(np.unique(y)) - 1 # number of classes
     x0 = np.zeros(P*K)
-    min = minimize(softmax_cost, x0, args=(X, y), jac=grad_softmax, hess=hess_softmax, method=method)
+    min = minimize(cost, x0, args=(X, y), jac=grad_cost, method=method)
     return min
 
 
@@ -181,4 +180,5 @@ theta_mat = np.random.random((P, K))
 
 test = optimize_softmax(X, y, "CG")
  
+
 
