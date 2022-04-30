@@ -1,4 +1,4 @@
-import hmm_glm
+import hmm_glm_bern
 
 def fit_hmm_glm_em(y, 
               likelihood_dists, X,
@@ -35,15 +35,16 @@ def fit_hmm_glm_em(y,
         back_mesg.run(data, forw_mesg.Phi)
 
         # compute posteriors
-        gamma, sig, pi, Phi, W  = posterior_estimates(forw_mesg, back_mesg, data)
+        gamma, pi, Phi = posterior_estimates(forw_mesg, back_mesg, data)
 
         # compute log-likelihood
         log_lik_m = np.sum(np.log(forw_mesg.Z))
         log_lik_ch = np.abs(log_lik - log_lik_m)
         log_lik = log_lik_m
-
-        data.W = W
-        data.stdevs = sig
+  
+        # now M-step
+        opt = optimize_logistic(data.X, data.y, gamma, "SLSQP")
+        data.W = opt.x
 
         # update likelihoods
         data.compute_likelihoods()
@@ -57,7 +58,7 @@ def fit_hmm_glm_em(y,
             break
 
     # create final object to regurn
-    posterior = {"W": W, "stdev": sig, "pi":pi, "Phi": Phi, "gamma": gamma}
+    posterior = {"W": W,  "pi":pi, "Phi": Phi, "gamma": gamma}
 
     return posterior, forw_mesg, back_mesg, data
     
