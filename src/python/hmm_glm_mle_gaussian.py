@@ -41,11 +41,7 @@ def fit_hmm_glm_em(y,
         log_lik_m = np.sum(np.log(forw_mesg.Z))
         log_lik_ch = np.abs(log_lik - log_lik_m)
         log_lik = log_lik_m
-        
-        # should probably offload the computaiton of W and sig from the posterior estimates functoin
-        # put them out here to hav a more transparent M - step
 
-        
         data.W = W
         data.stdevs = sig
 

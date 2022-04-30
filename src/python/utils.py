@@ -3,6 +3,10 @@ import scipy.stats as ss
 from sklearn.cluster import KMeans
 from sklearn import linear_model
 from scipy.optimize import minimize
+import jax.numpy as jnp
+from jax import grad, jit, vmap
+from jax import random
+import jax.scipy.optimize.minimize as jaxmin
 
 def lm(X, y):
     model = linear_model.LinearRegression()
@@ -70,73 +74,51 @@ def _indicator_Y(y, k_max):
     return np.vstack([_indicator_y(y, k) for k in range(k_max)])
 
 
-
-def comps(theta, X, y):
-    N = np.shape(y)[0]
-    K = len(np.unique(y)) - 1
-    P = np.shape(X)[1]
-    W = np.reshape(theta, (P, K))
-    xproj = X @ W
-    row_max = np.max(xproj, axis=1, keepdims=True)
-    xproj = xproj - row_max
-    exp_xproj = np.exp(xproj)
-    log_norm = np.log(np.sum(exp_xproj, axis=1, keepdims=True))
-    Y = _indicator_Y(y, K).T
-    return Y, log_norm, exp_xproj, xproj, P, K
-
-
-def cost(theta, X, y):
-    Y, log_norm, _, xproj, _, _ = comps(theta, X, y)
-    cost = Y * xproj - Y * log_norm
-    return -cost.sum(1).sum()
+# def comps(theta, X, y):
+#     N = np.shape(y)[0]
+#     K = len(np.unique(y)) - 1
+#     P = np.shape(X)[1]
+#     W = np.reshape(theta, (P, K))
+#     xproj = X @ W
+#     row_max = np.max(xproj, axis=1, keepdims=True)
+#     xproj = xproj - row_max
+#     exp_xproj = np.exp(xproj)
+#     log_norm = np.log(np.sum(exp_xproj, axis=1, keepdims=True))
+#     Y = _indicator_Y(y, K).T
+#     return Y, log_norm, exp_xproj, xproj, P, K
 
 
-def grad_cost(theta, X, y):
-    Y, _, exp_xproj, _, P, K = comps(theta, X, y)
-    p_y = exp_xproj / np.sum(exp_xproj, axis=1, keepdims=True)
-    jacc = np.zeros((P, K))
-    for k in range(K):
-        #jacc[:, k] = -np.sum(Y[:, k][:, np.newaxis] * (X - p_y[:, k][:, np.newaxis]),axis=0)
-        jacc[:, k] = -np.sum(X * (Y[:, k] - p_y[:, k])[:, np.newaxis] , axis=0)
-    return jacc.flatten()
+# def cost(theta, X, y):
+#     Y, log_norm, _, xproj, _, _ = comps(theta, X, y)
+#     cost = Y * xproj - Y * log_norm
+#     return -cost.sum(1).sum()
 
-# testing gradients
-from autograd import grad
-import autograd.numpy as anp
-
-def cost_anp(theta, X, y):
-    K, N = anp.shape(theta)[1], np.shape(y)[0]
-    xproj = X @ theta
-    exp_xproj = anp.exp(xproj)
-    log_norm = anp.log(anp.sum(exp_xproj, axis=1, keepdims=True))
-    Y = _indicator_Y(y, K).T
-    cost = Y * xproj - Y * log_norm
-    return -cost.sum(1).sum()
-
-grad(cost_anp, 0)(theta, X, y)
 
 #from scipy.linalg import block_diag
 
+def cost_jax(theta, X, y):
+    P = jnp.shape(X)[1]
+    N = np.shape(y)[0]
+    K = len(np.unique(y))
+    xproj = X @ theta.reshape((P, K))
+    exp_xproj = jnp.exp(xproj)
+    log_norm = jnp.log(jnp.sum(exp_xproj, axis=1, keepdims=True))
+    Y = _indicator_Y(y, K).T
+    cost = Y * xproj - Y * log_norm
+    return -cost.sum(1).sum()
+   
 
 
 """
-optimizing via scipy seems to only work with Nelder-Mead
-Alternative is to use scikit-learn
+optimizing via scipy, "SLSQP" works well
 
 """
 def optimize_softmax(X, y, method):
     N, P = X.shape
-    K = len(np.unique(y)) - 1 # number of classes
-    x0 = np.zeros(P*K)
-    min = minimize(cost, x0, args=(X, y), jac=grad_cost, method=method)
+    K = len(np.unique(y)) # number of classes
+    x0 = jnp.zeros(P*K)
+    min = minimize(cost_jax, x0, args=(X, y), jac=grad(cost_jax), method=method)
     return min
-
-
-
-def fit_softmax_reg(X, y):
-    model = linear_model.LogisticRegression(multi_class="multinomial", solver="newton-cg")
-    model.fit(X, y)
-    return model
 
 
 # testing
@@ -154,8 +136,8 @@ est, f, b, d = fit_hmm_em(y, likelihood_dists)
 
 # testing hmm_glm simulator
 
-n_samples = 300
-likelihood_dists = [ss.norm, ss.norm]
+n_samples = 3000
+likelihood_dists = [ss.norm, ss.norm]6
 pi = [0.5, 0.5]
 A = np.array([[0.6, 0.4],
               [0.2, 0.8]])
@@ -178,7 +160,7 @@ N, P = X.shape
 K = 3
 theta_mat = np.random.random((P, K))
 
-test = optimize_softmax(X, y, "CG")
+test = optimize_softmax(X, y, "SLSQP")
  
 
 

@@ -42,6 +42,7 @@ class Forward_message:
             self.alpha[t, :] = alpha_t.ravel()
             self.Z[t] = Z_t
         
+
 class Backward_message:
     def __init__(self, beta):
         self.beta = beta
@@ -54,12 +55,13 @@ class Backward_message:
             beta_t, _ = _normalize_z(Phi @ (data.lik[t, :] * self.beta[t, :])[:, np.newaxis])
             self.beta[t-1, :] = beta_t.ravel()
 
+# problem areas to solve are here
 def posterior_estimates(forward_message, backward_message, data):
     N = np.shape(data.lik)[0]
     K = len(data.psi)
     gamma = forward_message.alpha * backward_message.beta
     W = np.zeros((np.shape(data.X)[1], K))
-        
+    
     for k in range(K):
         p_z = np.diag(gamma[:, k] / np.sum(gamma[:, k]))
         X_proj = data.X.T @ p_z @ data.X
