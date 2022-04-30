@@ -5,15 +5,12 @@ def fit_hmm_glm_em(y,
               tol=1e-5, max_iter=50):
 
     N, K = np.shape(y)[0], len(likelihood_dists)
+    P = X.shape[1]
 
-    # initialize with k-means
-    init_params = init_kmeans(y, K)
-
-    W_no_state = np.repeat(lm(X, y), K).reshape(X.shape[1], K)
+    W_no_state = np.random.random((P, K))
 
     # initialize parameters: pi, Phi, mu, sig2
-    data = Data(np.zeros((N, K)), likelihood_dists, y, 
-                      [i[1] for i in init_params], X, W_no_state)
+    data = Data(np.zeros((N, K)), likelihood_dists, y, X, W_no_state)
 
     # initialize likelihood matrix
     data.compute_likelihoods()
@@ -43,8 +40,9 @@ def fit_hmm_glm_em(y,
         log_lik = log_lik_m
   
         # now M-step
-        opt = optimize_logistic(data.X, data.y, gamma, "SLSQP")
-        data.W = opt.x
+        for k in range(K):
+            opt = optimize_logistic(data.X, data.y, gamma[:, k][:, np.newaxis], "SLSQP")
+            data.W[:, k] = opt.x
 
         # update likelihoods
         data.compute_likelihoods()
@@ -58,7 +56,7 @@ def fit_hmm_glm_em(y,
             break
 
     # create final object to regurn
-    posterior = {"W": W,  "pi":pi, "Phi": Phi, "gamma": gamma}
+    posterior = {"W": data.W,  "pi":pi, "Phi": Phi, "gamma": gamma}
 
     return posterior, forw_mesg, back_mesg, data
     
