@@ -1,3 +1,4 @@
+from turtle import shape
 import numpy as np
 import scipy.stats as ss
 from sklearn.cluster import KMeans
@@ -6,7 +7,6 @@ from scipy.optimize import minimize
 import jax.numpy as jnp
 from jax import grad, jit, vmap
 from jax import random
-import jax.scipy.optimize.minimize as jaxmin
 
 def lm(X, y):
     model = linear_model.LinearRegression()
@@ -96,7 +96,7 @@ def _indicator_Y(y, k_max):
 
 #from scipy.linalg import block_diag
 
-def cost_jax(theta, X, y):
+def cost_jax_softmax(theta, X, y):
     P = jnp.shape(X)[1]
     N = np.shape(y)[0]
     K = len(np.unique(y))
@@ -107,8 +107,6 @@ def cost_jax(theta, X, y):
     cost = Y * xproj - Y * log_norm
     return -cost.sum(1).sum()
    
-
-
 """
 optimizing via scipy, "SLSQP" works well
 
@@ -117,8 +115,19 @@ def optimize_softmax(X, y, method):
     N, P = X.shape
     K = len(np.unique(y)) # number of classes
     x0 = jnp.zeros(P*K)
-    min = minimize(cost_jax, x0, args=(X, y), jac=grad(cost_jax), method=method)
+    min = minimize(cost_jax_softmax, x0, args=(X, y), jac=grad(cost_jax_softmax), method=method)
     return min
+
+def cost_jax_logistic(theta, gamma, X, y):
+    xproj = X @ theta[:, None]
+    L = -(jnp.multiply(gamma, y[:, jnp.newaxis])).T @ xproj
+    return (L + jnp.multiply(gamma, jnp.log(1 + jnp.exp(xproj))).sum(axis=0)).sum()
+    
+def optimize_logistic(X, y, gamma, method):
+    _, P = X.shape
+    x0 = jnp.zeros(P)
+    opt = minimize(cost_jax_logistic, x0, args=(gamma, X, y), jac=grad(cost_jax_logistic), method=method)
+    return opt
 
 
 # testing
@@ -137,7 +146,7 @@ est, f, b, d = fit_hmm_em(y, likelihood_dists)
 # testing hmm_glm simulator
 
 n_samples = 3000
-likelihood_dists = [ss.norm, ss.norm]6
+likelihood_dists = [ss.norm, ss.norm]
 pi = [0.5, 0.5]
 A = np.array([[0.6, 0.4],
               [0.2, 0.8]])
@@ -154,13 +163,12 @@ est, f, b, d = fit_hmm_glm_em(y, likelihood_dists, X)
 
 from sklearn.datasets import make_classification
 X, y = make_classification(n_samples=1000, n_features=3, n_informative=3, 
-                           n_redundant=0, n_classes=3, random_state=1)
+                           n_redundant=0, n_classes=2, random_state=1)
 # summarize the dataset
 N, P = X.shape
-K = 3
+K = 1
 theta_mat = np.random.random((P, K))
 
 test = optimize_softmax(X, y, "SLSQP")
  
-
 
