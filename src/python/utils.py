@@ -1,4 +1,3 @@
-from turtle import shape
 import numpy as np
 import scipy.stats as ss
 from sklearn.cluster import KMeans
@@ -7,6 +6,7 @@ from scipy.optimize import minimize
 import jax.numpy as jnp
 from jax import grad, jit, vmap
 from jax import random
+from scipy.special import expit
 
 def lm(X, y):
     model = linear_model.LinearRegression()
@@ -49,7 +49,7 @@ def simulate_data_hmm(n_samples, likelihood_dists, params, pi, A):
     return y, Z
 
 
-def simulate_data_hmm_glm(n_samples, likelihood_dists, W, X, pi, A, stdev):
+def simulate_data_hmm_glm_gauss(n_samples, likelihood_dists, W, X, pi, A, stdev):
     Z = np.zeros(n_samples, dtype=int)
     y = np.zeros(n_samples)
 
@@ -65,6 +65,22 @@ def simulate_data_hmm_glm(n_samples, likelihood_dists, W, X, pi, A, stdev):
 
     return y, Z
 
+
+
+def simulate_data_hmm_glm_bern(n_samples, likelihood_dists, W, X, pi, A):
+    Z = np.zeros(n_samples, dtype=int)
+    y = np.zeros(n_samples)
+
+    Z[0] = _get_Z(pi)
+    theta_0 = expit(X[0, :] @ W[:, Z[0]])
+    y[0] = likelihood_dists[Z[0]](theta_0).rvs()
+
+    for t in range(1, n_samples):
+        Z[t] = _get_Z(A[Z[t-1], :])
+        theta_t = expit(X[t, :] @ W[:, Z[t]])
+        y[t] = likelihood_dists[Z[t]](theta_t).rvs()
+
+    return y, Z
 
 def _indicator_y(y, k):
     return (y == k).astype(int)
@@ -118,15 +134,15 @@ def optimize_softmax(X, y, method):
     min = minimize(cost_jax_softmax, x0, args=(X, y), jac=grad(cost_jax_softmax), method=method)
     return min
 
-def cost_jax_logistic(theta, gamma, X, y):
+def cost_jax_logistic(theta, gamma_k, X, y):
     xproj = X @ theta[:, None]
-    L = -(jnp.multiply(gamma, y[:, jnp.newaxis])).T @ xproj
-    return (L + jnp.multiply(gamma, jnp.log(1 + jnp.exp(xproj))).sum(axis=0)).sum()
+    L = -(jnp.multiply(gamma_k, y[:, jnp.newaxis])).T @ xproj
+    return (L.ravel() + jnp.multiply(gamma_k, jnp.log(1 + jnp.exp(xproj))).sum())[0]
     
-def optimize_logistic(X, y, gamma, method):
+def optimize_logistic(X, y, gamma_k, method):
     _, P = X.shape
     x0 = jnp.zeros(P)
-    opt = minimize(cost_jax_logistic, x0, args=(gamma, X, y), jac=grad(cost_jax_logistic), method=method)
+    opt = minimize(cost_jax_logistic, x0, args=(gamma_k, X, y), jac=grad(cost_jax_logistic), method=method)
     return opt
 
 
@@ -145,18 +161,19 @@ est, f, b, d = fit_hmm_em(y, likelihood_dists)
 
 # testing hmm_glm simulator
 
-n_samples = 3000
-likelihood_dists = [ss.norm, ss.norm]
+n_samples = 8000
+likelihood_dists = [ss.bernoulli, ss.bernoulli]
 pi = [0.5, 0.5]
 A = np.array([[0.6, 0.4],
               [0.2, 0.8]])
-W = np.array([[10, 1], 
-              [4, 0.5], 
-              [15.5, 1.5]])
+W = np.array([[-2.3, 1], 
+              [-4.2, 0.5], 
+              [-3.5, 1.5]])
 
 X = np.random.random((n_samples, 3))
-y, Z = simulate_data_hmm_glm(n_samples, likelihood_dists, W, X, pi, A, [1.2, 0.3])
+y, Z = simulate_data_hmm_glm_gauss(n_samples, likelihood_dists, W, X, pi, A, [1.2, 0.3])
 
+y, Z = simulate_data_hmm_glm_bern(n_samples, likelihood_dists, W, X, pi, A)
 
 est, f, b, d = fit_hmm_glm_em(y, likelihood_dists, X)
 
@@ -170,5 +187,3 @@ K = 1
 theta_mat = np.random.random((P, K))
 
 test = optimize_softmax(X, y, "SLSQP")
- 
-
