@@ -59,22 +59,9 @@ class Backward_message:
 def posterior_estimates(forward_message, backward_message, data):
     N = np.shape(data.lik)[0]
     K = len(data.psi)
+
     gamma = forward_message.alpha * backward_message.beta
-    W = np.zeros((np.shape(data.X)[1], K))
-    
-    for k in range(K):
-        p_z = np.diag(gamma[:, k] / np.sum(gamma[:, k]))
-        X_proj = data.X.T @ p_z @ data.X
-        y_proj = data.X.T @ p_z @ data.y
-        W[:, k] = np.linalg.lstsq(X_proj, y_proj, rcond=None)[0]
-
-    sig2, zeta = np.zeros(K), np.zeros((N, K, K))
-    y_no_mu = (data.y[:, np.newaxis] - data.X @ W)
-
-    for k in range(K):
-        g = gamma[:, k]
-        sig2[k] = ((g[:, np.newaxis].T @ y_no_mu[:, k]**2 )/ np.sum(gamma[:, k]))
-
+    zeta = np.zeros(K), np.zeros((N, K, K))
     pi = gamma[0, :] / np.sum(gamma[0, :])
 
     for t in range(N-1):
@@ -87,4 +74,5 @@ def posterior_estimates(forward_message, backward_message, data):
     Phi = np.sum(zeta, axis=0)
     Phi = Phi / Phi.sum(axis=1)[:, np.newaxis]
 
-    return gamma, np.sqrt(sig2), pi, Phi, W
+
+    return gamma, pi, Phi
