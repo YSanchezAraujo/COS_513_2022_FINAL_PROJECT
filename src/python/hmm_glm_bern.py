@@ -2,11 +2,10 @@ import utils
 
 # tested, this works
 class Data:
-    def __init__(self, lik, psi, y, stdevs, X, W):
+    def __init__(self, lik, psi, y, X, W):
         self.lik = lik
         self.psi = psi
         self.y = y
-        self.stdevs = stdevs
         self.X = X
         self.W = W
 
@@ -14,9 +13,9 @@ class Data:
         N = np.shape(self.y)[0]
         K = len(self.psi)
         
-        XW = self.X @ self.W 
         for k in range(K):
-            self.lik[:, k] = self.psi[k](XW[:, k], self.stdevs[k]).pdf(self.y)
+            theta = expit(self.X @ self.W[:, k])
+            self.lik[:, k] = self.psi[k](theta).pmf(self.y)
 
 class Forward_message:
     def __init__(self, alpha, pi, Z, Phi):
@@ -61,7 +60,7 @@ def posterior_estimates(forward_message, backward_message, data):
     K = len(data.psi)
 
     gamma = forward_message.alpha * backward_message.beta
-    zeta = np.zeros(K), np.zeros((N, K, K))
+    zeta = np.zeros((N, K, K))
     pi = gamma[0, :] / np.sum(gamma[0, :])
 
     for t in range(N-1):
