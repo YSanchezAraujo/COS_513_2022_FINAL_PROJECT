@@ -10,6 +10,8 @@ def fit_hmm_glm_em(y,
     init_params = init_kmeans(y, K)
 
     W_no_state = np.repeat(lm(X, y), K).reshape(X.shape[1], K)
+    for k in range(1, K):
+        W_no_state[:, k] = W_no_state[:, k] + np.random.random(X.shape[1])
 
     # initialize parameters: pi, Phi, mu, sig2
     data = Data(np.zeros((N, K)), likelihood_dists, y, 
@@ -17,6 +19,12 @@ def fit_hmm_glm_em(y,
 
     # initialize likelihood matrix
     data.compute_likelihoods()
+
+    # if the current params result in all zero likelihood, initialize randomly
+    for k in range(K):
+        if data.lik[:, k].mean() == 0:
+            data.lik[:, k] = np.random.random(N)
+
 
     # Q: do we actually need k-means initializations?
     forw_mesg = Forward_message(
@@ -41,6 +49,7 @@ def fit_hmm_glm_em(y,
         log_lik_m = np.sum(np.log(forw_mesg.Z))
         log_lik_ch = np.abs(log_lik - log_lik_m)
         log_lik = log_lik_m
+        print("LL change: ", log_lik_ch, "\t", "LL current: ", log_lik)
 
         data.W = W
         data.stdevs = sig
