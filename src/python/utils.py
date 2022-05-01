@@ -48,6 +48,20 @@ def simulate_data_hmm(n_samples, likelihood_dists, params, pi, A):
 
     return y, Z
 
+def simulate_data_hmm_bern(n_samples, likelihood_dists, params, pi, A):
+    # initialize matrices
+    Z = np.zeros(n_samples, dtype=int)
+    y = np.zeros(n_samples)
+
+    # get first time step
+    Z[0] = _get_Z(pi)
+    y[0] = likelihood_dists[Z[0]](params[Z[0]]).rvs()
+
+    for t in range(1, n_samples):
+        Z[t] = _get_Z(A[Z[t-1], :])
+        y[t] = likelihood_dists[Z[t]](params[Z[t]]).rvs()
+
+    return y, Z
 
 def simulate_data_hmm_glm_gauss(n_samples, likelihood_dists, W, X, pi, A, stdev):
     Z = np.zeros(n_samples, dtype=int)
@@ -136,13 +150,17 @@ def optimize_softmax(X, y, method):
 
 def cost_jax_logistic(theta, gamma_k, X, y):
     xproj = X @ theta[:, None]
-    L = -(jnp.multiply(gamma_k, y[:, jnp.newaxis])).T @ xproj
-    return (L.ravel() + jnp.multiply(gamma_k, jnp.log(1 + jnp.exp(xproj))).sum())[0]
-    
+    p_z = gamma_k / jnp.sum(gamma_k)
+    L = -(jnp.multiply(p_z, y[:, jnp.newaxis])).T @ xproj
+    return (L.ravel() + jnp.multiply(p_z, jnp.log(1 + jnp.exp(xproj))).sum())[0]
+
+
 def optimize_logistic(X, y, gamma_k, method):
     _, P = X.shape
     x0 = jnp.zeros(P)
-    opt = minimize(cost_jax_logistic, x0, args=(gamma_k, X, y), jac=grad(cost_jax_logistic), method=method)
+    opt = minimize(cost_jax_logistic, x0, args=(gamma_k, X, y), 
+                      jac=grad(cost_jax_logistic), 
+                      hess=hessian(cost_jax_logistic), method=method)
     return opt
 
 
@@ -161,7 +179,7 @@ est, f, b, d = fit_hmm_em(y, likelihood_dists)
 
 # testing hmm_glm simulator
 
-n_samples = 8000
+n_samples = 1000
 likelihood_dists = [ss.bernoulli, ss.bernoulli]
 pi = [0.5, 0.5]
 A = np.array([[0.6, 0.4],
@@ -187,3 +205,7 @@ K = 1
 theta_mat = np.random.random((P, K))
 
 test = optimize_softmax(X, y, "SLSQP")
+ 
+
+y, Z = simulate_data_hmm_bern(n_samples, likelihood_dists, [0.3, 0.8], pi, A)
+est, f, b, d = fit_hmm_em(y, likelihood_dists)
