@@ -66,8 +66,7 @@ def posterior_estimates(forward_message, backward_message, data):
         p_z = np.diag(gamma[:, k] / np.sum(gamma[:, k]))
         X_proj = data.X.T @ p_z @ data.X
         y_proj = data.X.T @ p_z @ data.y
-        #W[:, k] = np.linalg.lstsq(X_proj, y_proj, rcond=None)[0]
-        W[:, k] = lm(X_proj, y_proj)
+        W[:, k] = np.linalg.lstsq(X_proj, y_proj, rcond=None)[0]
 
 
     sig2, zeta = np.zeros(K), np.zeros((N, K, K))
