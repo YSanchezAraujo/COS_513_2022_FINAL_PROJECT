@@ -2,28 +2,28 @@ import numpy as numpy
 import os
 import matplotlib.pyplot as plt
 import scipy.stats as ss
+import matplotlib
+matplotlib.rcParams.update({'font.size': 16})
 
-data_path = "/jukebox/witten/yoel/data"
+
+
+data_path = "/Users/yoelsanchezaraujo/Desktop"
 mouse = 29
 day = 1
 
-def load_data(path, mouse, day):
-    X_load_str = "X_fip_" + str(mouse) + "_day_" + str(day) + ".npy"
-    y_load_str = "Y_fip_" + str(mouse) + "_day_" + str(day) + ".npy"
-    X = np.load(os.path.join(path, X_load_str))
-    Y = np.load(os.path.join(path, y_load_str))
-    return {"X":X, "Y":Y}
-
-dat = load_data(data_path, mouse, day)    
-
 X = np.load("fip_29_X.npy")
-Y = np.load("fip_29_Y.npy")
-use_samps = np.load("use_samps_fip29.npy")
-num_samps = np.load("num_samps_fip29.npy")
-lik_dist = [ss.norm, ss.norm, ss.norm]
+Y = np.load("fip_29_Y_feed.npy")
+cstim = np.load("cstim.npy")
+cfeed = np.load("cfeed.npy")
+b_stim = np.load("bools_stim.npy")
+b_feed = np.load("bools_feed.npy")
+lik_dist = [ss.norm, ss.norm]
 y_idx = 0
 idx_use = ~np.isnan(Y[:, y_idx])
-est, f, b, d = fit_hmm_glm_em(Y[idx_use, y_idx], lik_dist, X[idx_use, :], max_iter=20)
+est2, f, b, d, ll = fit_hmm_glm_em(Y[idx_use, y_idx], lik_dist, X[idx_use, :], max_iter=50)
+
+LLs = np.zeros((49, 2))
+LLs[:, 0] = ll[1:]
 
 cons = ["6.25%", "12.5%", "25%", "100%"]
 rcons = ["right " + i for i in cons]
@@ -38,20 +38,23 @@ col = [j for i in [["green", "purple"] , col_ipsi, col_contra] for j in i]
 labs = [j for i in [ ["choice", "rewarded"], rcons, lcons] for j in i]
 linestyles = ["--", "--", "-", "-", "-", "-","-", "-", "-", "-"]
 for c in range(10):
-    plt.plot(est["W"].T[:, c], "-o", lw=5, color=col[c], linestyle=linestyles[c])
-plt.xticks([0, 1, 2], ["state 1", "state 2", "state 3", fontsize=20)
+    plt.plot(est2["W"].T[:, c], "-o", lw=5, color=col[c], linestyle=linestyles[c])
+plt.xticks([0, 1], ["state 1", "state 2"], fontsize=20)
 plt.legend(labs, fontsize=20)
 plt.title("Mouse 1 NACC estimated input weights", fontsize=20)
 plt.yticks(fontsize=20)
 plt.ylabel("weight values", fontsize=20)
-plt.savefig("W_states_4fip29.png", dpi=200, bbox_inches="tight")
+plt.savefig("W_states__feedback_2fip29.png", dpi=200, bbox_inches="tight")
 
 # 
 # GAMMA PLOT
 #
-xi = np.cumsum(num_samps[use_samps[:, y_idx], y_idx])
-plt.plot(est["gamma"], lw=3)
-for k in xi:
+pz = est2["gamma"]
+pz = pz / np.sum(pz, axis=1, keepdims=True)
+a = 0
+b = cstim[0, 0]
+plt.plot(pz[a:b, :], lw=3)
+for k in cstim[:, 0]:
     plt.axvline(k, linestyle="--", color="black", lw=3)
 plt.xticks(fontsize=20)
 plt.yticks(fontsize=20)
@@ -61,7 +64,24 @@ plt.legend(["state 1", "state 2", "state 3"], fontsize=20)
 plt.title("Mouse 1 NACC estimated state probabilities", fontsize=20)
 plt.savefig("gammaall_S4_ses.png", dpi=200, bbox_inches="tight")
 
-matplotlib.rcParams.update({'font.size': 22})
+
+fig, ax = plt.subplots(nrows=2, ncols=2)
+a0, b0 = cfeed[0, 0], cfeed[1, 0]
+a1, b1 = cfeed[1, 0], cfeed[2, 0]
+a2, b2 = cfeed[2, 0], cfeed[3, 0]
+a3, b3 = cfeed[3, 0], cfeed[4, 0]
+ax[0, 0].plot(pz[a0:b0, :], lw=3)
+ax[0, 1].plot(pz[a1:b1, :], lw=3)
+ax[1, 0].plot(pz[a2:b2, :], lw=3)
+ax[1, 1].plot(pz[a3:b3, :], lw=3)
+ax[0, 0].legend(["state 1", "state 2"])
+ax[0, 0].set_title("session 1")
+ax[0, 1].set_title("session 2")
+ax[1, 0].set_title("session 3")
+ax[1, 1].set_title("session 4")
+fig.text(0.5, 0.04, 'trials within sessions', ha='center')
+fig.text(0.04, 0.5, 'P(state = k)', va='center', rotation='vertical')
+plt.savefig("first_1to4_days_2state__feedback_gammas.png", dpi=200, bbox_inches="tight")
 
 #
 # Psychometric curves by day
@@ -102,9 +122,31 @@ ax[1].set_ylabel("state 2")
 ax[2].set_ylabel("state 3")
 ax[2].set_xlabel("samples")
 ax[0].set_title("NACC signal by most likely state")
-plt.savefig("Y_by_state_3states.png", dpi=200, bbox_inches="tight")
+plt.savefig("Y_by_state_2states.png", dpi=200, bbox_inches="tight")
 
-plt.imshow(est["Phi"])
+plt.imshow(est2["Phi"])
 plt.colorbar()
 plt.title("Estimated transition matrix")
-plt.savefig("trans_mat_3state.png", dpi=200, bbox_inches="tight")
+plt.xticks([0, 1], ["state 1", "state 2"])
+plt.yticks([0, 1], ["state 1", "state 2"])
+plt.savefig("trans_mat_2state_feedback.png", dpi=200, bbox_inches="tight")
+
+
+z_idx = np.argmax(pz, axis=1)
+Y[idx_use, y_idx][z_idx == 0]
+fig, ax = plt.subplots(nrows=2, ncols=1)
+ax[0].plot(Y[idx_use, y_idx][z_idx == 0], lw=3)
+ax[1].plot(Y[idx_use, y_idx][z_idx == 1], lw=3)
+ax[2].plot(Y[idx_use, y_idx][z_idx == 2], lw=3)
+
+
+plt.hist(Y[idx_use, y_idx][z_idx == 0], edgecolor="white")
+plt.hist(Y[idx_use, y_idx][z_idx == 1], edgecolor="white")
+#plt.hist(Y[idx_use, y_idx][z_idx == 2], edgecolor="white", alpha=0.5)
+
+plt.legend(["state 1", "state 2"])
+plt.ylabel("counts")
+plt.xlabel("Brain signal")
+plt.title("Brain signal by most likely state")
+plt.savefig("2state_hist_feedback.png", dpi=200, bbox_inches="tight")
+
